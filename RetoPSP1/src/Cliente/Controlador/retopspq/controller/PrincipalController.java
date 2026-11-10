@@ -1,6 +1,7 @@
 package retopspq.controller;
 
 import java.io.IOException;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.InetSocketAddress;
@@ -14,52 +15,91 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 
 /**
- * Controla la pantalla del chat y la comunicacion con el servidor.
+ * Controlador de la ventana del chat (Principal.fxml) y de la comunicacion con el servidor.
+ * <p>
+ * La conexion y la recepcion de mensajes van en hilos aparte para que la ventana no se
+ * bloquee nunca. Los cambios en la ventana se hacen siempre con {@code Platform.runLater},
+ * porque JavaFX solo deja tocar los controles desde su propio hilo.
  */
 public class PrincipalController {
-    // Limites para validar los datos que escribe el usuario.
+    /** Tiempo maximo para conectar con el servidor, en milisegundos. */
     private static final int CONNECT_TIMEOUT_MILLIS = 5_000;
+    /** Tiempo maximo para recibir la respuesta al LOGIN, en milisegundos. */
     private static final int LOGIN_TIMEOUT_MILLIS = 10_000;
+    /** Longitud maxima de un mensaje, en caracteres. */
     private static final int MAX_MESSAGE_LENGTH = 2_000;
+    /** Longitud maxima del nombre de usuario. */
     private static final int MAX_USERNAME_LENGTH = 24;
 
-    // Controles enlazados con
+    /**
+     * Solo se aceptan textos y arrays de textos de como mucho 4 posiciones (los mensajes
+     * del protocolo). Cualquier otra clase que llegue del servidor se rechaza antes de crearla.
+     */
+    private static final ObjectInputFilter ONLY_TEXT =
+            ObjectInputFilter.Config.createFilter("java.lang.String;maxdepth=2;maxarray=4;!*");
+
+    // Controles enlazados con Principal.fxml
+
+    /** Campo de la IP o nombre del servidor. */
     @FXML
     private TextField ipField;
+    /** Campo del puerto del servidor. */
     @FXML
     private TextField portField;
+    /** Campo del nombre de usuario. */
     @FXML
     private TextField usernameField;
+    /** Campo "Para": destinatario de los mensajes privados. */
     @FXML
     private TextField recipientField;
+    /** Campo donde se escribe el mensaje. */
     @FXML
     private TextField messageField;
+    /** Casilla "Privado". */
     @FXML
     private CheckBox privateCheckBox;
+    /** Boton "Conectar". */
     @FXML
     private Button connectButton;
+    /** Boton "Desconectar". */
     @FXML
     private Button disconnectButton;
+    /** Boton "Enviar". */
     @FXML
     private Button sendButton;
+    /** Etiqueta del estado de la conexion; muestra "Conectado como ..." con el nombre. */
     @FXML
     private Label statusLabel;
+    /** Zona donde se muestran los mensajes del chat. */
     @FXML
     private TextArea chatArea;
 
-    // Datos de la conexion actual.
+    // Datos de la conexion actual. Son volatile porque los usan el hilo de la ventana
+    // y los hilos de conexion y recepcion.
+
+    /** Socket conectado con el servidor, o null si no hay conexion. */
     private volatile Socket clientSocket;
+    /** Stream para enviar mensajes al servidor, o null si no hay conexion. */
     private volatile ObjectOutputStream clientWriter;
+    /** Nombre con el que se ha entrado al chat. */
     private volatile String currentUsername;
+    /** Indica que hay una conexion en curso, para no lanzar dos a la vez. */
     private volatile boolean connecting;
 
-    // Al abrir la ventana, deja los botones en el estado correcto.
+    /** Constructor vacio; lo usa el FXMLLoader al cargar Principal.fxml. */
+    public PrincipalController() {
+    }
+
+    /** Al abrir la ventana, deja los botones en el estado correcto. */
     @FXML
     private void initialize() {
         updateControls();
     }
 
-    // Valida los campos y empieza la conexion en segundo plano.
+    /**
+     * Boton "Conectar": valida la IP, el puerto y el nombre, y conecta en un hilo aparte
+     * para no bloquear la ventana mientras tanto.
+     */
     @FXML
     private void onConnect() {
         if (connecting || clientSocket != null) {
@@ -99,11 +139,16 @@ public class PrincipalController {
         thread.start();
     }
 
+    /** Boton "Desconectar": cierra la conexion con el servidor. */
     @FXML
     private void onDisconnect() {
         closeConnection();
     }
 
+    /**
+     * Cierra la conexion con el servidor y deja la ventana lista para volver a conectar.
+     * Tambien se llama al cerrar la ventana.
+     */
     public void closeConnection() {
         Socket socket = clientSocket;
         clientSocket = null;
@@ -121,7 +166,10 @@ public class PrincipalController {
         statusLabel.setText("No conectado");
     }
 
-    // Prepara un mensaje publico o privado y lo envia al servidor.
+    /**
+     * Boton "Enviar" (o tecla Intro): prepara un mensaje publico o, si esta marcada la
+     * casilla "Privado", uno privado para el usuario del campo "Para", y lo envia al servidor.
+     */
     @FXML
     private void onSend() {
         String message = messageField.getText().trim();
@@ -163,12 +211,20 @@ public class PrincipalController {
         messageField.clear();
     }
 
+    /** Casilla "Privado": activa o desactiva el campo del destinatario. */
     @FXML
     private void onPrivateToggled() {
         updateControls();
     }
 
-    // Abre el socket, inicia sesion y espera la respuesta del servidor.
+    /**
+     * Abre el socket, envia el LOGIN y espera la respuesta del servidor. Si entra, lanza
+     * el hilo que recibe los mensajes. Se ejecuta en el hilo "chat-connect", no en el de la ventana.
+     *
+     * @param host IP o nombre del servidor
+     * @param port puerto del servidor
+     * @param username nombre de usuario
+     */
     private void openConnection(String host, int port, String username) {
         Socket socket = new Socket();
         try {
@@ -177,6 +233,7 @@ public class PrincipalController {
             ObjectOutputStream writer = new ObjectOutputStream(socket.getOutputStream());
             writer.flush();
             ObjectInputStream reader = new ObjectInputStream(socket.getInputStream());
+            reader.setObjectInputFilter(ONLY_TEXT);
 
             writer.writeObject(new String[] {"LOGIN", username});
             writer.flush();
@@ -234,7 +291,13 @@ public class PrincipalController {
         }
     }
 
-    // Lee continuamente los mensajes hasta que se cierre la conexion.
+    /**
+     * Lee los mensajes del servidor hasta que se cierra la conexion. Se ejecuta en su
+     * propio hilo, separado del envio, para que la ventana nunca se bloquee.
+     *
+     * @param socket socket conectado con el servidor
+     * @param reader stream de entrada del socket
+     */
     private void receiveMessages(Socket socket, ObjectInputStream reader) {
         String disconnectReason = "El servidor ha cerrado la conexion.";
         try {
@@ -271,7 +334,11 @@ public class PrincipalController {
         }
     }
 
-    // Interpreta el tipo de mensaje recibido y lo muestra en el chat.
+    /**
+     * Muestra un mensaje recibido en el chat, indicando si es publico o privado y quien lo envia.
+     *
+     * @param fields mensaje del protocolo recibido del servidor
+     */
     private void displayFrame(String[] fields) {
         try {
             switch (fields[0]) {
@@ -310,7 +377,7 @@ public class PrincipalController {
         }
     }
 
-    // Activa o desactiva controles segun el estado de la conexion.
+    /** Activa o desactiva los controles segun si hay conexion o no. */
     private void updateControls() {
         boolean connected = clientSocket != null;
         connectButton.setDisable(connected || connecting);
@@ -324,7 +391,12 @@ public class PrincipalController {
         sendButton.setDisable(!connected);
     }
 
-    // Agrega texto al chat de forma segura desde cualquier hilo.
+    /**
+     * Anade una linea al chat. Se puede llamar desde cualquier hilo, porque el cambio
+     * se hace con {@code Platform.runLater} en el hilo de JavaFX.
+     *
+     * @param message texto que se anade
+     */
     private void appendMessage(String message) {
         Platform.runLater(new Runnable() {
             @Override
@@ -334,7 +406,12 @@ public class PrincipalController {
         });
     }
 
-    // Rechaza caracteres que pueden interferir con el nombre de usuario.
+    /**
+     * Comprueba si un texto tiene caracteres de control (saltos de linea, tabuladores...).
+     *
+     * @param value texto que se comprueba
+     * @return {@code true} si tiene algun caracter de control
+     */
     private static boolean containsControlCharacter(String value) {
         for (int i = 0; i < value.length(); i++) {
             if (Character.isISOControl(value.charAt(i))) {
@@ -344,14 +421,24 @@ public class PrincipalController {
         return false;
     }
 
-    // Comprueba que el mensaje tenga el numero de campos esperado.
+    /**
+     * Comprueba que un mensaje tenga el numero de campos esperado.
+     *
+     * @param fields mensaje recibido
+     * @param expected numero de campos que deberia tener
+     * @throws IllegalArgumentException si no tiene ese numero de campos
+     */
     private static void requireFieldCount(String[] fields, int expected) {
         if (fields.length != expected) {
             throw new IllegalArgumentException("Numero de campos incorrecto.");
         }
     }
 
-    // Cierra el socket y registra un error si no se puede cerrar.
+    /**
+     * Cierra un socket y escribe el error en consola si no se puede cerrar.
+     *
+     * @param socket socket que se cierra
+     */
     private static void closeSocket(Socket socket) {
         try {
             socket.close();
