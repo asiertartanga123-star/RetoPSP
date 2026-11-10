@@ -41,13 +41,18 @@ final class ClientRegistry {
     }
 
     /**
-     * Da de alta a un cliente si hay sitio y su nombre no esta en uso.
+     * Da de alta a un cliente si hay sitio y su nombre no esta en uso, y le envia el WELCOME.
      * El nombre se compara sin distinguir mayusculas de minusculas.
+     * <p>
+     * El WELCOME se envia dentro del bloque synchronized: asi ningun broadcast de otro hilo
+     * puede llegarle al cliente nuevo antes que su WELCOME, que el cliente espera como
+     * primer mensaje.
      *
      * @param client cliente que quiere entrar, con su nombre ya asignado
      * @return {@code null} si ha entrado, o el motivo del rechazo
+     * @throws IOException si no se le puede enviar el WELCOME; en ese caso no queda dado de alta
      */
-    String register(ClientConnection client) {
+    String register(ClientConnection client) throws IOException {
         synchronized (clientsLock) {
             if (clients.size() >= maxClients) {
                 return "El servidor ha alcanzado el maximo de clientes.";
@@ -58,6 +63,12 @@ final class ClientRegistry {
                 }
             }
             clients.put(client.username(), client);
+            try {
+                client.send(new String[] {"WELCOME", client.username()});
+            } catch (IOException exception) {
+                clients.remove(client.username());
+                throw exception;
+            }
             logger.log("ENTRA | " + client.username());
             return null;
         }

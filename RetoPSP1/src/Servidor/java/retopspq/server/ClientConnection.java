@@ -133,9 +133,9 @@ final class ClientConnection implements Runnable {
                 return;
             }
 
-            // Ya ha entrado: se quita el tiempo maximo y se avisa al resto de usuarios.
+            // Ya ha entrado (register le ha enviado el WELCOME): se quita el tiempo maximo
+            // y se avisa al resto de usuarios.
             socket.setSoTimeout(0);
-            send(new String[] {"WELCOME", username});
             clients.broadcast(new String[] {"INFO", username + " se ha unido al chat."}, this);
             while (!socket.isClosed()) {
                 Object received = input.readObject();
