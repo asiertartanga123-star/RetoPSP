@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+
+<BorderPane minHeight="500.0" minWidth="850.0" prefHeight="735.0" prefWidth="1100.0" style="-fx-background-color: #f4f4f4; -fx-font-size: 18px;" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="retopspq.controller.PrincipalController">
+    <padding>
+        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+    </padding>
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="14.0">
+            <padding>
+                <Insets bottom="18.0" left="18.0" right="18.0" top="18.0" />
+            </padding>
+            <children>
+                <Label text="IP:" />
+                <TextField fx:id="ipField" prefWidth="127.0" text="127.0.0.1" />
+                <Label text="Puerto:" />
+                <TextField fx:id="portField" prefWidth="90.0" text="5000" />
+                <Label text="Usuario:" />
+                <TextField fx:id="usernameField" prefWidth="127.0" promptText="Tu nombre" />
+                <Button fx:id="connectButton" mnemonicParsing="false" onAction="#onConnect" text="Conectar" />
+                <Button fx:id="disconnectButton" disable="true" mnemonicParsing="false" onAction="#onDisconnect" text="Desconectar" />
+                <Label fx:id="statusLabel" style="-fx-font-weight: bold;" text="No conectado" />
+            </children>
+        </HBox>
+    </top>
+    <center>
+        <TextArea fx:id="chatArea" editable="false" style="-fx-background-color: white; -fx-border-color: #00aeef; -fx-border-width: 2px; -fx-control-inner-background: white;" wrapText="true" />
+    </center>
+    <bottom>
+        <HBox alignment="CENTER_LEFT" spacing="14.0">
+            <padding>
+                <Insets bottom="20.0" left="28.0" right="14.0" top="18.0" />
+            </padding>
+            <children>
+                <CheckBox fx:id="privateCheckBox" mnemonicParsing="false" onAction="#onPrivateToggled" text="Privado" />
+                <Label text="Para:" />
+                <TextField fx:id="recipientField" disable="true" prefWidth="126.0" promptText="Usuario" />
+                <TextField fx:id="messageField" HBox.hgrow="ALWAYS" onAction="#onSend" promptText="Escribe un mensaje..." />
+                <Button fx:id="sendButton" disable="true" mnemonicParsing="false" onAction="#onSend" text="Enviar" />
+            </children>
+        </HBox>
+    </bottom>
+</BorderPane>
