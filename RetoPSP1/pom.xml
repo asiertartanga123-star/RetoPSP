@@ -22,6 +22,13 @@
         </dependency>
     </dependencies>
     <build>
+        <sourceDirectory>src/Cliente/Controlador</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>src/Cliente/resources/com/Vista</directory>
+                <targetPath>retopspq/vista/view</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -29,6 +36,9 @@
                 <version>3.8.0</version>
                 <configuration>
                     <release>11</release>
+                    <excludes>
+                        <exclude>**/module-info.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -41,7 +51,7 @@
                         <!-- Usage: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.reto.App</mainClass>
+                            <mainClass>retopspq.vista.App</mainClass>
                         </configuration>
                     </execution>
                 </executions>
