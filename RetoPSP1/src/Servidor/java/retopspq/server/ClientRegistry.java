@@ -7,32 +7,47 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Mantiene la lista de clientes conectados y centraliza las operaciones compartidas.
- * Esta clase actúa como registro central del servidor.
+ * Registro central de los clientes conectados al servidor.
+ * <p>
+ * Guarda los clientes por nombre de usuario y hace las operaciones que comparten
+ * todos los hilos: dar de alta, dar de baja, buscar y difundir mensajes. Todos los
+ * accesos al mapa estan protegidos con {@code synchronized} sobre {@code clientsLock}.
  */
 final class ClientRegistry {
-    // Límite máximo de clientes simultáneos permitidos.
+    /** Numero maximo de clientes conectados a la vez. */
     private final int maxClients;
 
-    // Logger para registrar eventos de entrada y salida.
+    /** Log donde se apuntan las entradas y salidas de usuarios. */
     private final ChatLogger logger;
 
-    // Objeto de bloqueo para proteger la estructura compartida de clientes.
+    /** Objeto de bloqueo que protege el mapa de clientes. */
     private final Object clientsLock = new Object();
 
-    // Mapa que guarda los clientes conectados por nombre de usuario.
+    /** Clientes conectados, por nombre de usuario. */
     private final Map<String, ClientConnection> clients = new LinkedHashMap<>();
 
-    // Señal para indicar que el servidor ha sido cerrado.
+    /** Indica que el servidor se esta cerrando y ya no acepta conexiones. */
     private volatile boolean serverClosed;
 
+    /**
+     * Crea el registro de clientes.
+     *
+     * @param maxClients numero maximo de clientes conectados a la vez
+     * @param logger log donde se apuntan las entradas y salidas
+     */
     ClientRegistry(int maxClients, ChatLogger logger) {
         this.maxClients = maxClients;
         this.logger = logger;
     }
 
-    // Registra a un cliente si cumple las reglas del servidor.
-    String register(ClientConnection client) throws IOException {
+    /**
+     * Da de alta a un cliente si hay sitio y su nombre no esta en uso.
+     * El nombre se compara sin distinguir mayusculas de minusculas.
+     *
+     * @param client cliente que quiere entrar, con su nombre ya asignado
+     * @return {@code null} si ha entrado, o el motivo del rechazo
+     */
+    String register(ClientConnection client) {
         synchronized (clientsLock) {
             if (clients.size() >= maxClients) {
                 return "El servidor ha alcanzado el maximo de clientes.";
@@ -48,18 +63,19 @@ final class ClientRegistry {
         }
     }
 
-    // Elimina a un cliente de la lista y registra su desconexión.
+    /**
+     * Da de baja a un cliente y avisa al resto de que ha salido.
+     * Solo lo quita si es el mismo objeto que se registro, para que un cliente
+     * rechazado no borre al que ya tenia ese nombre.
+     *
+     * @param client cliente que se ha desconectado
+     */
     void unregister(ClientConnection client) {
         boolean removed;
         synchronized (clientsLock) {
             removed = clients.remove(client.username(), client);
             if (removed) {
-                try {
-                    logger.log("SALE | " + client.username());
-                } catch (IOException exception) {
-                    System.err.println("No se pudo registrar la desconexion de " + client.username() + ": "
-                            + exception.getMessage());
-                }
+                logger.log("SALE | " + client.username());
             }
         }
         if (removed) {
@@ -67,7 +83,12 @@ final class ClientRegistry {
         }
     }
 
-    // Busca un cliente por nombre ignorando mayúsculas y minúsculas.
+    /**
+     * Busca un cliente conectado por su nombre, sin distinguir mayusculas de minusculas.
+     *
+     * @param username nombre del usuario que se busca
+     * @return el cliente, o {@code null} si no esta conectado
+     */
     ClientConnection find(String username) {
         synchronized (clientsLock) {
             for (ClientConnection client : clients.values()) {
@@ -79,7 +100,14 @@ final class ClientRegistry {
         }
     }
 
-    // Envía un frame a todos los clientes conectados salvo al excluido.
+    /**
+     * Envia un mensaje a todos los clientes conectados menos a uno.
+     * Se recorre una copia de la lista para no enviar con el bloqueo cogido.
+     * Si un envio falla, ese cliente se da de baja.
+     *
+     * @param frame mensaje del protocolo que se envia
+     * @param excluded cliente que no lo recibe, o {@code null} para enviarlo a todos
+     */
     void broadcast(String[] frame, ClientConnection excluded) {
         for (ClientConnection client : snapshot()) {
             if (client != excluded) {
@@ -93,26 +121,39 @@ final class ClientRegistry {
         }
     }
 
-    // Devuelve la cantidad de clientes actualmente conectados.
+    /**
+     * Devuelve cuantos clientes hay conectados.
+     *
+     * @return numero de clientes conectados
+     */
     int size() {
         synchronized (clientsLock) {
             return clients.size();
         }
     }
 
-    // Genera una copia de la colección para evitar problemas de concurrencia.
+    /**
+     * Devuelve una copia de la lista de clientes conectados, para poder recorrerla
+     * sin bloquear al resto de hilos.
+     *
+     * @return copia de la lista de clientes
+     */
     List<ClientConnection> snapshot() {
         synchronized (clientsLock) {
             return new ArrayList<>(clients.values());
         }
     }
 
-    // Marca el servidor como cerrado para evitar aceptar nuevas conexiones.
+    /** Marca el servidor como cerrado para que deje de aceptar conexiones. */
     void closeServer() {
         serverClosed = true;
     }
 
-    // Indica si el servidor está cerrado.
+    /**
+     * Indica si el servidor se esta cerrando.
+     *
+     * @return {@code true} si el servidor esta cerrado
+     */
     boolean isServerClosed() {
         return serverClosed;
     }
