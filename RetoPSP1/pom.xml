@@ -43,7 +43,7 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>retopspq.vista.Launcher</mainClass>
+                    <mainClass>Cliente.Controlador.retopspq.vista.Launcher</mainClass>
                 </configuration>
             </plugin>
         </plugins>

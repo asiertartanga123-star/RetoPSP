@@ -1,4 +1,4 @@
-package retopspq.server;
+package Servidor.java.retopspq.server;
 
 import java.io.EOFException;
 import java.io.IOException;

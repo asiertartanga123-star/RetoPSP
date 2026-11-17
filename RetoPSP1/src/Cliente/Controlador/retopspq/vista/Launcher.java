@@ -1,4 +1,4 @@
-package retopspq.vista;
+package Cliente.Controlador.retopspq.vista;
 
 /**
  * Clase de arranque del cliente.

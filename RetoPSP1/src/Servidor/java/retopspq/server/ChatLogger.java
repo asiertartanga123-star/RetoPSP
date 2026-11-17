@@ -1,4 +1,4 @@
-package retopspq.server;
+package Servidor.java.retopspq.server;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

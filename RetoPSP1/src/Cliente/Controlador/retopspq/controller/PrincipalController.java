@@ -1,4 +1,4 @@
-package retopspq.controller;
+package Cliente.Controlador.retopspq.controller;
 
 import java.io.IOException;
 import java.io.ObjectInputFilter;
